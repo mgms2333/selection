@@ -1,0 +1,142 @@
+// cpp-httplib 兼容层
+// 当 Drogon 未安装时使用此简单 HTTP 实现
+// 完整版请安装 Drogon 或下载 cpp-httplib
+
+#ifndef HTTPLIB_H
+#define HTTPLIB_H
+
+#include <iostream>
+#include <string>
+#include <map>
+#include <functional>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <sstream>
+#include <cstring>
+
+namespace httplib {
+
+struct Request {
+    std::string method;
+    std::string path;
+    std::string body;
+    std::map<std::string, std::string> headers;
+    std::map<std::string, std::string> params;
+};
+
+struct Response {
+    int status = 200;
+    std::string content;
+    std::map<std::string, std::string> headers;
+    
+    void set_content(const std::string& body, const std::string& content_type) {
+        content = body;
+        headers["Content-Type"] = content_type;
+    }
+};
+
+class Server {
+public:
+    using Handler = std::function<void(const Request&, Response&)>;
+    
+    Server& Get(const std::string& pattern, Handler handler) {
+        get_handlers_[pattern] = handler;
+        return *this;
+    }
+    
+    Server& Post(const std::string& pattern, Handler handler) {
+        post_handlers_[pattern] = handler;
+        return *this;
+    }
+    
+    void listen(const std::string& host, int port) {
+        int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (server_fd < 0) {
+            std::cerr << "Failed to create socket" << std::endl;
+            return;
+        }
+        
+        int opt = 1;
+        setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        
+        struct sockaddr_in address;
+        address.sin_family = AF_INET;
+        address.sin_addr.s_addr = inet_addr(host.c_str());
+        address.sin_port = htons(port);
+        
+        if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+            std::cerr << "Bind failed" << std::endl;
+            close(server_fd);
+            return;
+        }
+        
+        if (listen(server_fd, 10) < 0) {
+            std::cerr << "Listen failed" << std::endl;
+            close(server_fd);
+            return;
+        }
+        
+        std::cout << "Server listening on " << host << ":" << port << std::endl;
+        
+        while (true) {
+            struct sockaddr_in client_addr;
+            socklen_t client_len = sizeof(client_addr);
+            int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
+            
+            if (client_fd < 0) continue;
+            
+            // 读取请求
+            char buffer[4096] = {0};
+            read(client_fd, buffer, sizeof(buffer));
+            
+            // 解析请求
+            Request req;
+            Response res;
+            
+            std::istringstream iss(buffer);
+            std::string method, path;
+            iss >> method >> path;
+            req.method = method;
+            req.path = path;
+            
+            // 路由
+            Handler handler = nullptr;
+            if (method == "GET" && get_handlers_.count(path)) {
+                handler = get_handlers_[path];
+            } else if (method == "POST" && post_handlers_.count(path)) {
+                handler = post_handlers_[path];
+            }
+            
+            if (handler) {
+                handler(req, res);
+            } else {
+                res.status = 404;
+                res.content = R"({"status":"error","message":"Not Found"})";
+                res.headers["Content-Type"] = "application/json";
+            }
+            
+            // 发送响应
+            std::ostringstream oss;
+            oss << "HTTP/1.1 " << res.status << " OK\r\n";
+            oss << "Content-Type: application/json\r\n";
+            oss << "Content-Length: " << res.content.size() << "\r\n";
+            oss << "Connection: close\r\n";
+            oss << "\r\n";
+            oss << res.content;
+            
+            std::string response = oss.str();
+            write(client_fd, response.c_str(), response.size());
+            close(client_fd);
+        }
+    }
+
+private:
+    std::map<std::string, Handler> get_handlers_;
+    std::map<std::string, Handler> post_handlers_;
+};
+
+} // namespace httplib
+
+#endif // HTTPLIB_H

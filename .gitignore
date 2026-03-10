@@ -1,0 +1,25 @@
+# Build outputs
+backend/build/
+backend/logs/
+frontend/dist/
+frontend/node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*.log
+
+# Compiled files
+*.o
+*.out
+*.exe

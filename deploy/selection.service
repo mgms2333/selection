@@ -1,0 +1,14 @@
+[Unit]
+Description=Product Selection System Backend
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/codes/product-selection-system/backend/build
+ExecStart=/home/codes/product-selection-system/backend/build/product_selection_backend
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
