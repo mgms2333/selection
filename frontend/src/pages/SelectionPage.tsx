@@ -278,7 +278,8 @@ const SelectionPage = () => {
 
   return (
     <div style={{ padding: '24px', minHeight: '100vh', background: '#f0f2f5' }}>
-      <Row gutter={24}>
+      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+        <Row gutter={24}>
         {/* 左侧：产品列表 */}
         <Col xs={24} lg={16}>
           <Card>
@@ -478,6 +479,7 @@ const SelectionPage = () => {
           </Card>
         </Col>
       </Row>
+      </div>
 
       {/* 详情抽屉 */}
       <Drawer
